@@ -1,0 +1,63 @@
+# Compiled object files, binaries and build output
+/bin/
+/build/
+/out/
+/dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.o
+
+# Test and coverage
+*.test
+coverage.out
+*.coverprofile
+
+# Go modules / workspace
+vendor/
+go.work
+go.work.sum
+
+# Generated files
+*.log
+logs/
+tmp/
+temp/
+*.pid
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment files
+.env
+.env.local
+.env.*.local
+secrets.env
+*.secret
+*.key
+*.pem
+
+# IDE / editor directories
+.idea/
+*.iml
+.vscode/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Node (if any)
+node_modules/
+
+# Misc
+.coverage
+
+# If you need to keep specific generated files under version control,
+# add exceptions after the patterns above, for example:
+# !internal/database/models/*.sql.go
+
