@@ -12,8 +12,7 @@ type SignupParams struct {
 }
 
 type SignupResponse struct {
-	UserId  uuid.UUID `json:"userId"`
-	Message string    `json:"message"`
+	UserId uuid.UUID `json:"userId"`
 }
 
 type UpdateUsernameParams struct {
@@ -23,7 +22,6 @@ type UpdateUsernameParams struct {
 
 type UpdateUsernameResponse struct {
 	Username string `json:"username"`
-	Message  string `json:"message"`
 }
 
 type LoginResponse struct {
@@ -34,4 +32,18 @@ type LoginResponse struct {
 type TokenResponse struct {
 	Token     string    `json:"token"`
 	ExpiresAt time.Time `json:"expiresAt"`
+}
+
+type ResetPasswordRequest struct {
+	Email    string `json:"email" binding:"required,email"`
+	Token    string `json:"token" binding:"required"`
+	Password string `json:"password" binding:"required,password"`
+}
+
+type ResetPasswordResponse struct {
+	Message string `json:"message"`
+}
+
+type EmailRequest struct {
+	Email string `json:"email" binding:"required,email"`
 }

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"example.com/inga/internal/api"
+	"example.com/inga/internal/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 )
@@ -21,7 +22,7 @@ func NewHandler(service Service) *Handler {
 func (h *Handler) SignupHandler(ctx *gin.Context) api.Response {
 	var params SignupParams
 	if err := ctx.ShouldBindJSON(&params); err != nil {
-		return validationResponse(err)
+		return utils.ValidateFields(err)
 	}
 
 	response, err := h.service.registerUserHandler(ctx, params)
@@ -30,8 +31,61 @@ func (h *Handler) SignupHandler(ctx *gin.Context) api.Response {
 	}
 
 	return api.Response{
-		Code: http.StatusCreated,
-		Data: response,
+		Code:    http.StatusCreated,
+		Message: "Your account has been created. Check your inbox for a verification email.",
+		Data:    response,
+	}
+}
+
+func (h *Handler) LoginHandler(ctx *gin.Context) api.Response {
+	var params SignupParams
+
+	if err := ctx.ShouldBindJSON(&params); err != nil {
+		response := utils.ValidateFields(err)
+		//
+		return api.Error(errors.New(response.Message))
+	}
+
+	response, err := h.service.authenticateUserHandler(ctx, params)
+	if err != nil {
+		return api.Error(err)
+	}
+
+	return api.Response{
+		Code:    http.StatusOK,
+		Message: "Login successful",
+		Data:    response,
+	}
+
+}
+
+func (h *Handler) ForgotPasswordHandler(ctx *gin.Context) api.Response {
+	var params EmailRequest
+	if err := ctx.ShouldBindJSON(&params); err != nil {
+		return utils.ValidateFields(err)
+	}
+
+	if err := h.service.forgetPassword(ctx.Request.Context(), params.Email); err != nil {
+		return api.Error(err)
+	}
+
+	return api.OK("password reset link sent to your email", nil)
+}
+
+func (h *Handler) ResetPasswordHandler(ctx *gin.Context) api.Response {
+	var params ResetPasswordRequest
+	if err := ctx.ShouldBindJSON(&params); err != nil {
+		return utils.ValidateFields(err)
+	}
+
+	response, err := h.service.resetPassword(ctx.Request.Context(), params)
+	if err != nil {
+		return api.Error(err)
+	}
+	return api.Response{
+		Code:    http.StatusOK,
+		Message: "password reset successfully",
+		Data:    response,
 	}
 }
 
@@ -93,7 +147,7 @@ func (h *Handler) VerifyHandler(ctx *gin.Context) api.Response {
 func (h *Handler) UpdateUsernameHandler(ctx *gin.Context) api.Response {
 	var params UpdateUsernameParams
 	if err := ctx.ShouldBindJSON(&params); err != nil {
-		return validationResponse(err)
+		return utils.ValidateFields(err)
 	}
 
 	response, err := h.service.UpdateUsername(ctx.Request.Context(), params)
@@ -102,7 +156,8 @@ func (h *Handler) UpdateUsernameHandler(ctx *gin.Context) api.Response {
 	}
 
 	return api.Response{
-		Code: http.StatusOK,
-		Data: response,
+		Code:    http.StatusOK,
+		Message: "username updated successfully",
+		Data:    response,
 	}
 }

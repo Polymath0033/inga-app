@@ -95,6 +95,35 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username string) (GetUs
 	return i, err
 }
 
+const resetPassword = `-- name: ResetPassword :one
+UPDATE users SET password = $1, updated_at = now() WHERE email = $2
+RETURNING id, email, password, updated_at
+`
+
+type ResetPasswordParams struct {
+	Password string `json:"password"`
+	Email    string `json:"email"`
+}
+
+type ResetPasswordRow struct {
+	ID        uuid.UUID    `json:"id"`
+	Email     string       `json:"email"`
+	Password  string       `json:"password"`
+	UpdatedAt sql.NullTime `json:"updated_at"`
+}
+
+func (q *Queries) ResetPassword(ctx context.Context, arg ResetPasswordParams) (ResetPasswordRow, error) {
+	row := q.db.QueryRowContext(ctx, resetPassword, arg.Password, arg.Email)
+	var i ResetPasswordRow
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Password,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const saveUser = `-- name: SaveUser :one
 INSERT INTO users(email, password) VALUES ($1, $2)
 RETURNING id, email, username, verified, created_at, updated_at

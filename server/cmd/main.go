@@ -15,6 +15,8 @@ import (
 	"example.com/inga/internal/logger"
 	"example.com/inga/internal/notification/emails"
 	"example.com/inga/internal/notification/queue"
+	"example.com/inga/internal/storage"
+	"example.com/inga/internal/utils/generator"
 	"example.com/inga/server"
 	"github.com/joho/godotenv"
 	"github.com/sethvargo/go-envconfig"
@@ -53,6 +55,11 @@ func main() {
 		logger.Warn(ctx, "email sender is disabled", zap.Error(err))
 	}
 
+	cloudinarySvc, err := storage.New(cfg.Cloudinary)
+	if err != nil {
+		logger.Warn(ctx, "cloudinary is disabled", zap.Error(err))
+	}
+
 	// Create email queue with 2 worker goroutines
 	emailQueue := queue.NewEmailQueue(emailer, 2)
 	defer func() {
@@ -64,11 +71,12 @@ func main() {
 		}
 	}()
 
-	authService := auth.NewService(querier, emailQueue, cfg.Email.VerificationURL)
+	tokenGenerator := generator.NewTokenGenerator(cfg.JWT)
+	authService := auth.NewService(querier, emailQueue, cfg.Email.VerificationURL, tokenGenerator)
 
 	authHandler := auth.NewHandler(authService)
 
-	srvHandler := server.New(cfg, querier, authHandler)
+	srvHandler := server.New(cfg, querier, authHandler, cloudinarySvc)
 	routes, err := srvHandler.BuildRoute()
 	if err != nil {
 		log.Fatal(err)

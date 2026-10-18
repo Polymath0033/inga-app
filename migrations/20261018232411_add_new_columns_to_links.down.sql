@@ -1,0 +1,9 @@
+ALTER TABLE links
+DROP COLUMN IF EXISTS collection_id;
+
+ALTER TABLE links
+DROP COLUMN IF EXISTS favicon;
+
+ALTER TABLE links
+DROP COLUMN IF EXISTS tag_id;
+

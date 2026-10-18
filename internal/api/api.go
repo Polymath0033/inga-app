@@ -9,24 +9,26 @@ import (
 )
 
 type Response struct {
-	Code  int
-	Data  interface{}
-	Error *ApiError
+	Code    int
+	Message string
+	Data    interface{}
+	Error   *ApiError
 }
 
 func (r *Response) Marshal() ([]byte, error) {
-	if r.Error == nil && r.Data == nil {
-		return nil, errors.New("no data or error to marshal")
+	errorMessage := ""
+	if r.Error != nil {
+		errorMessage = r.Error.Message
+	} else if r.Code >= http.StatusBadRequest {
+		errorMessage = r.Message
 	}
 
-	if r.Error != nil {
-		data, err := json.Marshal(ErrorResponse{Error: r.Error.Message})
-		if err != nil {
-			return nil, err
-		}
-		return data, nil
-	}
-	data, err := json.Marshal(r.Data)
+	data, err := json.Marshal(ResponseEnvelope{
+		Code:    r.Code,
+		Message: r.Message,
+		Data:    r.Data,
+		Error:   errorMessage,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -40,20 +42,23 @@ func Wrap(handler HttHandler) gin.HandlerFunc {
 		response := handler(ctx)
 		data, err := response.Marshal()
 		if err != nil {
-			ctx.JSON(500, ErrorResponse{Error: "Internal Server Error"})
+			ctx.JSON(http.StatusInternalServerError, ResponseEnvelope{
+				Code:    http.StatusInternalServerError,
+				Message: "Internal Server Error",
+				Data:    nil,
+				Error:   "Internal Server Error",
+			})
 			return
 		}
 		ctx.Data(response.Code, "application/json", data)
 	}
 }
 
-type SuccessResponse struct {
+type ResponseEnvelope struct {
+	Code    int         `json:"code"`
+	Message string      `json:"message"`
 	Data    interface{} `json:"data"`
-	Message string      `json:"message,omitempty"`
-}
-
-type ErrorResponse struct {
-	Error string `json:"error"`
+	Error   string      `json:"error,omitempty"`
 }
 
 type ApiError struct {
@@ -65,12 +70,6 @@ func (e *ApiError) Error() string {
 	return e.Message
 }
 
-func newError(message string) *ApiError {
-	return &ApiError{
-		Message: message,
-	}
-}
-
 func NewErrorWithCode(code int, message string) *ApiError {
 	return &ApiError{
 		Code:    code,
@@ -80,22 +79,32 @@ func NewErrorWithCode(code int, message string) *ApiError {
 
 func BadRequest(message string) Response {
 	return Response{
-		Code:  http.StatusBadRequest,
-		Error: newError(message),
+		Code:    http.StatusBadRequest,
+		Message: message,
+		Error:   NewErrorWithCode(http.StatusBadRequest, message),
 	}
 }
 
 func Error(err error) Response {
 	var e *ApiError
 	if errors.As(err, &e) {
+		code := e.Code
+		if code == 0 {
+			code = http.StatusInternalServerError
+		}
+		apiErr := *e
+		apiErr.Code = code
 		return Response{
-			Code:  e.Code,
-			Error: e,
+			Code:    code,
+			Message: apiErr.Message,
+			Error:   &apiErr,
 		}
 	}
 	return Response{
-		Code: http.StatusInternalServerError,
+		Code:    http.StatusInternalServerError,
+		Message: err.Error(),
 		Error: &ApiError{
+			Code:    http.StatusInternalServerError,
 			Message: err.Error(),
 		},
 	}
@@ -103,38 +112,40 @@ func Error(err error) Response {
 
 func Unauthorized(message string) Response {
 	return Response{
-		Code:  http.StatusUnauthorized,
-		Error: newError(message),
+		Code:    http.StatusUnauthorized,
+		Message: message,
+		Error:   NewErrorWithCode(http.StatusUnauthorized, message),
 	}
 }
 
 func Forbidden(message string) Response {
 	return Response{
-		Code:  http.StatusForbidden,
-		Error: newError(message),
+		Code:    http.StatusForbidden,
+		Message: message,
+		Error:   NewErrorWithCode(http.StatusForbidden, message),
 	}
 }
 
 func NotFound(message string) Response {
 	return Response{
-		Code:  http.StatusNotFound,
-		Error: newError(message),
+		Code:    http.StatusNotFound,
+		Message: message,
+		Error:   NewErrorWithCode(http.StatusNotFound, message),
 	}
 }
 
 func ServerError(message string) Response {
 	return Response{
-		Code:  http.StatusInternalServerError,
-		Error: newError(message),
+		Code:    http.StatusInternalServerError,
+		Message: message,
+		Error:   NewErrorWithCode(http.StatusInternalServerError, message),
 	}
 }
 
 func OK(message string, data interface{}) Response {
 	return Response{
-		Code: http.StatusOK,
-		Data: SuccessResponse{
-			Data:    data,
-			Message: message,
-		},
+		Code:    http.StatusOK,
+		Message: message,
+		Data:    data,
 	}
 }

@@ -3,11 +3,12 @@ package config
 import "time"
 
 type Config struct {
-	Server   ServerConfig
-	App      AppConfig
-	Email    EmailConfig
-	Database DatabaseConfig
-	JWT      JWTConfig
+	Server     ServerConfig
+	App        AppConfig
+	Email      EmailConfig
+	Database   DatabaseConfig
+	JWT        JWTConfig
+	Cloudinary CloudinaryConfig
 }
 
 type ServerConfig struct {
@@ -44,4 +45,10 @@ type DatabaseConfig struct {
 	Password string `env:"DATABASE_PASSWORD"`
 	Database string `env:"DATABASE_NAME"`
 	DSN      string `env:"DATABASE_DSN"`
+}
+
+type CloudinaryConfig struct {
+	CloudName string `env:"CLOUDINARY_CLOUD_NAME"`
+	APIKey    string `env:"CLOUDINARY_API_KEY"`
+	APISecret string `env:"CLOUDINARY_API_SECRET"`
 }

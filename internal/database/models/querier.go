@@ -19,6 +19,7 @@ type Querier interface {
 	GetUserByUsername(ctx context.Context, username string) (GetUserByUsernameRow, error)
 	GetVerificationByToken(ctx context.Context, token string) (EmailVerification, error)
 	MarkVerificationUsed(ctx context.Context, token string) error
+	ResetPassword(ctx context.Context, arg ResetPasswordParams) (ResetPasswordRow, error)
 	SaveLink(ctx context.Context, arg SaveLinkParams) (SaveLinkRow, error)
 	SaveUser(ctx context.Context, arg SaveUserParams) (SaveUserRow, error)
 	SaveVerification(ctx context.Context, arg SaveVerificationParams) (EmailVerification, error)

@@ -24,6 +24,8 @@ type Service interface {
 	VerifyToken(ctx context.Context, token string) error
 	UpdateUsername(ctx context.Context, params UpdateUsernameParams) (UpdateUsernameResponse, error)
 	authenticateUserHandler(ctx *gin.Context, params SignupParams) (LoginResponse, error)
+	forgetPassword(ctx context.Context, email string) error
+	resetPassword(ctx context.Context, params ResetPasswordRequest) (ResetPasswordResponse, error)
 }
 
 type service struct {
@@ -96,8 +98,7 @@ func (s service) registerUserHandler(ctx *gin.Context, params SignupParams) (Sig
 	}
 
 	return SignupResponse{
-		UserId:  newUser.ID,
-		Message: "Your account has been created. Check your inbox for a verification email.",
+		UserId: newUser.ID,
 	}, nil
 
 }
@@ -168,12 +169,87 @@ func (s service) UpdateUsername(ctx context.Context, params UpdateUsernameParams
 
 	return UpdateUsernameResponse{
 		Username: user.Username,
-		Message:  "username updated successfully",
 	}, nil
+}
+
+func (s service) forgetPassword(ctx context.Context, email string) error {
+	user, err := s.db.GetUserByEmail(ctx, email)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return platformErrors.MakeApiError(404, "user not found")
+		}
+		logger.Error(ctx, "failed to get user by email", zap.Error(err))
+		return platformErrors.ErrInternal
+	}
+
+	token, err := generator.GenerateVerificationToken(user.ID)
+	if err != nil {
+		logger.Error(ctx, "failed to generate verification token", zap.Error(err))
+		return platformErrors.ErrInternal
+	}
+
+	expiresAt := time.Now().Add(1 * time.Hour)
+	if _, err := s.db.SaveVerification(ctx, models.SaveVerificationParams{
+		UserID:    user.ID,
+		Token:     token,
+		ExpiresAt: expiresAt,
+	}); err != nil {
+		logger.Error(ctx, "failed to save verification token", zap.Error(err))
+		return platformErrors.ErrInternal
+	}
+
+	// TODO: Send password reset email with the generated token
+	// ...
+	logger.Info(ctx, "password reset token generated", zap.String("token", token))
+
+	return nil
+}
+
+func (s service) resetPassword(ctx context.Context, params ResetPasswordRequest) (ResetPasswordResponse, error) {
+	user, err := s.db.GetUserByEmail(ctx, params.Email)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ResetPasswordResponse{}, platformErrors.MakeApiError(404, "user not found")
+		}
+		logger.Error(ctx, "failed to get user by email", zap.Error(err))
+		return ResetPasswordResponse{}, platformErrors.ErrInternal
+	}
+
+	v, err := s.db.GetVerificationByToken(ctx, params.Token)
+	if err != nil {
+		logger.Error(ctx, "failed to get verification token", zap.Error(err))
+		return ResetPasswordResponse{}, platformErrors.ErrInternal
+	}
+	if v.Used.Valid && v.Used.Bool {
+		return ResetPasswordResponse{}, platformErrors.MakeApiError(400, "token already used")
+	}
+	if time.Now().After(v.ExpiresAt) {
+		return ResetPasswordResponse{}, platformErrors.MakeApiError(400, "token expired")
+	}
+
+	if err := s.db.MarkVerificationUsed(ctx, params.Token); err != nil {
+		logger.Error(ctx, "failed to mark verification token used", zap.Error(err))
+		return ResetPasswordResponse{}, platformErrors.ErrInternal
+	}
+	// Update the user's password
+	hashedPassword := password.DefaultHasher.Hash(params.Password)
+	if _, err := s.db.ResetPassword(ctx, models.ResetPasswordParams{
+		Password: hashedPassword,
+		Email:    user.Email,
+	}); err != nil {
+		logger.Error(ctx, "failed to update user password", zap.Error(err))
+		return ResetPasswordResponse{}, platformErrors.ErrInternal
+	}
+
+	return ResetPasswordResponse{
+		Message: "password reset successfully",
+	}, nil
+
 }
 
 func (s service) authenticateUserHandler(ctx *gin.Context, params SignupParams) (LoginResponse, error) {
 	user, err := s.db.GetUserByEmail(ctx, params.Email)
+	logger.Info(ctx, "user", zap.Any("user", user))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return LoginResponse{}, platformErrors.MakeApiError(401, "invalid email or password")
@@ -182,7 +258,7 @@ func (s service) authenticateUserHandler(ctx *gin.Context, params SignupParams) 
 		return LoginResponse{}, platformErrors.ErrInternal
 	}
 
-	if !password.DefaultHasher.Validate(params.Password, user.Password) {
+	if !password.DefaultHasher.Validate(user.Password, params.Password) {
 		return LoginResponse{}, platformErrors.MakeApiError(401, "invalid email or password")
 	}
 

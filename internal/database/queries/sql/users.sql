@@ -19,3 +19,7 @@ SELECT id, email, username, verified, created_at, updated_at FROM users WHERE id
 -- name: GetUserByUsername :one
 SELECT id, email, username, verified, created_at, updated_at FROM users WHERE username = $1 LIMIT 1;
 
+-- name: ResetPassword :one
+UPDATE users SET password = $1, updated_at = now() WHERE email = $2
+RETURNING id, email, password, updated_at;
+
